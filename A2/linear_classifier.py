@@ -6,6 +6,7 @@ import torch
 import random
 import statistics
 from abc import abstractmethod
+from torch.nn import functional as F
 
 def hello_linear_classifier():
   """
@@ -177,13 +178,12 @@ def svm_loss_vectorized(W, X, y, reg):
   # Implement a vectorized version of the structured SVM loss, storing the    #
   # result in loss.                                                           #
   #############################################################################
-  num_train = X.shape[0]
+  num_train, num_classes = X.shape[0], W.shape[1]
   scores = torch.matmul(X, W) # (N, C)
-  correct_class_score = scores[range(num_train), y].unsqueeze(-1)
-  margins = scores - correct_class_score + 1
-  margins[range(num_train), y] = 0
+  correct_class_score = scores[range(num_train), y].unsqueeze(-1) # or torch.gather
+  margins = scores - correct_class_score + 1 - F.one_hot(y, num_classes)
   loss += margins.relu().sum(-1).mean() # averaged over samples
-  loss += reg * (W * W).sum() # regularization
+  loss += reg*W.pow(2).sum() # regularization
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -197,11 +197,10 @@ def svm_loss_vectorized(W, X, y, reg):
   # to reuse some of the intermediate values that you used to compute the     #
   # loss.                                                                     #
   #############################################################################
-  positive_margins_cnt = (margins > 0).sum(-1)
-  mask = margins.relu()
-  mask[range(num_train), y] -= positive_margins_cnt
+  positive_margins_cnt = (margins > 0).sum(-1, True) # (N, 1)
+  mask = margins.relu() - F.one_hot(y, num_classes) * positive_margins_cnt
   dW += (X.unsqueeze(-1) * mask.unsqueeze(1)).mean(0) # (N, D, 1) * (N, 1, C)
-  dW += reg*2*W # regularization
+  dW += reg*2*W  # regularization
   #############################################################################
   #                             END OF YOUR CODE                              #
   #############################################################################
@@ -309,7 +308,7 @@ def predict_linear_classifier(W, X):
   """
   y_pred = torch.zeros(X.shape[0], dtype=torch.int64)
   ###########################################################################
-  # TODO:                                                                   #softmax
+  # TODO:                                                                   #
   # Implement this method. Store the predicted labels in y_pred.            #
   ###########################################################################
   y_pred = torch.matmul(X, W).argmax(-1)
@@ -369,7 +368,7 @@ def test_one_param_set(cls, data_dict, lr, reg, num_iters=2000):
   - val_acc (float): validation accuracy of the svm_model
   """
   train_acc = 0.0 # The accuracy is simply the fraction of data points
-  val_acc = 0.0   # that are correctHTTPError: HTTP Error 500: Internal Server Errorly classified.
+  val_acc = 0.0   # that are correct
   ###########################################################################
   # TODO:                                                                   #
   # Write code that, train a linear SVM on the training set, compute its    #
@@ -389,8 +388,8 @@ def test_one_param_set(cls, data_dict, lr, reg, num_iters=2000):
       data_dict['X_val'], 
       data_dict['y_val'])
   cls.train(X_train, y_train, lr, reg, num_iters)
-  train_acc = (cls.predict(X_train) == y_train).sum() / len(y_train)
-  val_acc   = (cls.predict(X_val) == y_val).sum() / len(y_val)
+  train_acc = (cls.predict(X_train) == y_train).sum().item() / len(y_train)
+  val_acc   = (cls.predict(X_val) == y_val).sum().item() / len(y_val)
   ############################################################################
   #                            END OF YOUR CODE                              #
   ############################################################################
@@ -449,7 +448,7 @@ def softmax_loss_naive(W, X, y, reg):
 
   
   loss /= num_train
-  loss += reg * torch.sum(W * W)
+  loss += reg*W.pow(2).sum()
 
   dW /= num_train
   dW += reg*2*W
@@ -485,14 +484,13 @@ def softmax_loss_vectorized(W, X, y, reg):
   logits = torch.matmul(X, W)
   logits = logits - logits.max(-1, True).values
   log_prob = logits - logits.logsumexp(-1, True)
-  prob = log_prob.exp() # stability / for backprop
-  loss += -log_prob[range(num_train), y].mean() + reg * torch.sum(W * W)
+  loss += -log_prob[range(num_train), y].mean() + reg*W.pow(2).sum()
 
   # grad
-  mask = prob.clone()
-  mask[range(num_train), y] -= 1
-  dW += (X.unsqueeze(-1) * mask.unsqueeze(1)).mean(0) # (N, D, 1) * (N, 1, C)
-  dW += reg*2*W # regularization
+  prob = log_prob.exp() # stability / for backprop
+  mask = prob - torch.nn.functional.one_hot(y, prob.shape[1])
+  dW += (X.unsqueeze(-1) * mask.unsqueeze(1)).mean(0)  # (N, D, 1) * (N, 1, C)
+  dW += reg*2*W  # regularization
   #############################################################################
   #                          END OF YOUR CODE                                 #
   #############################################################################
