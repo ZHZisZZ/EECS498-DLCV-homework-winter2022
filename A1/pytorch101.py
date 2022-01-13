@@ -704,11 +704,3 @@ def challenge_get_uniques(x: torch.Tensor) -> Tuple[Tensor, Tensor]:
     #                            END OF YOUR CODE                            #
     ##########################################################################
     return uniques, indices
-
-
-if __name__ == '__main__':
-    # print(multiples_of_ten(5,7))
-    # print(multiples_of_ten(-10, 20))
-    tensor = torch.arange(9).reshape(3,3).to(torch.float64)
-    print(normalize_columns(tensor))
-    print(challenge_mean_tensors([torch.tensor([1,1]), torch.tensor([2,1, 9])], None))
