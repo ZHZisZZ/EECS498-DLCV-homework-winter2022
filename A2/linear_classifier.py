@@ -197,9 +197,11 @@ def svm_loss_vectorized(W, X, y, reg):
   # to reuse some of the intermediate values that you used to compute the     #
   # loss.                                                                     #
   #############################################################################
-  positive_margins_cnt = (margins > 0).sum(-1, True) # (N, 1)
-  mask = margins.relu() - F.one_hot(y, num_classes) * positive_margins_cnt
-  dW += (X.unsqueeze(-1) * mask.unsqueeze(1)).mean(0) # (N, D, 1) * (N, 1, C)
+  positive_margins_mask = (margins > 0).double()
+  positive_margins_cnt = (positive_margins_mask).sum(-1, True)  # (N, 1)
+  dldz = (positive_margins_mask - 
+          F.one_hot(y, num_classes) * positive_margins_cnt) / num_train
+  dW += torch.matmul(X.T, dldz)  # (D, N) * (N, C)
   dW += reg*2*W  # regularization
   #############################################################################
   #                             END OF YOUR CODE                              #
@@ -332,7 +334,6 @@ def svm_get_search_params():
 
   learning_rates = []
   regularization_strengths = []
-
   ###########################################################################
   # TODO:   add your own hyper parameter lists.                             #
   ###########################################################################
@@ -488,8 +489,8 @@ def softmax_loss_vectorized(W, X, y, reg):
 
   # grad
   prob = log_prob.exp() # stability / for backprop
-  mask = prob - torch.nn.functional.one_hot(y, prob.shape[1])
-  dW += (X.unsqueeze(-1) * mask.unsqueeze(1)).mean(0)  # (N, D, 1) * (N, 1, C)
+  mask = (prob - torch.nn.functional.one_hot(y, prob.shape[1])) / num_train
+  dW += torch.matmul(X.T, mask) # (D, N) * (N * C)
   dW += reg*2*W  # regularization
   #############################################################################
   #                          END OF YOUR CODE                                 #
