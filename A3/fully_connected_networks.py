@@ -66,8 +66,9 @@ class Linear(object):
     #############################################################################
     # TODO: Implement the linear backward pass.                                 #
     #############################################################################
-    dx = torch.matmul(dout, w.T)  # (N, M)   * (D, M).T -> N, D
-    dw = torch.matmul(x.T, dout)  # (N, D).T * (N, M)   -> D, M
+    flattened_x = x.view(x.shape[0], -1)        # (N, D)
+    dx = torch.matmul(dout, w.T).view(x.shape)  # (N, M)   * (D, M).T -> N, D
+    dw = torch.matmul(flattened_x.T, dout)      # (N, D).T * (N, M)   -> D, M
     db = dout.sum(0)
     #############################################################################
     #                              END OF YOUR CODE                             #
